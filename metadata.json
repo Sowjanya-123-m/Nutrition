@@ -1,0 +1,6 @@
+{
+  "name": "Nutrition Assistant",
+  "description": "A clinical AI Nutrition Assistant utilizing Mifflin-St Jeor body metabolic indices, personal health profiling, and daily diet plan generators with Gemini guidance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
