@@ -4,6 +4,7 @@ import axios from 'axios';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { UnavBar } from '../components/UnavBar';
+import { DatabaseControlCenter } from '../components/DatabaseControlCenter';
 import { Suggestion, User } from '../types';
 import {
   Activity,
@@ -343,38 +344,7 @@ export const Home: React.FC = () => {
             </div>
 
             {/* Admin Database Sync Widget */}
-            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-md shadow-slate-100/40 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center space-x-3">
-                  <div className="h-10 w-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
-                    <Database className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-display font-bold text-lg text-slate-900">Database Sync Engine</h2>
-                    <p className="text-xs text-slate-400 font-mono">SYNCHRONIZE LOCAL JSON AND CLOUD DATA</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleSyncDatabase}
-                  disabled={isSyncing}
-                  className="inline-flex items-center space-x-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white text-sm font-semibold rounded-xl shadow-md shadow-rose-500/10 hover:shadow-rose-600/25 active:scale-95 transition-all duration-200"
-                  id="btn-sync-database"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                  <span>{isSyncing ? 'Syncing Databases...' : 'Sync Local DB to MongoDB'}</span>
-                </button>
-              </div>
-              
-              {syncMessage && (
-                <div className={`p-4 rounded-xl text-xs font-mono border ${
-                  syncMessage.startsWith('✅') 
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-100' 
-                    : 'bg-rose-50 text-rose-800 border-rose-100'
-                }`}>
-                  {syncMessage}
-                </div>
-              )}
-            </div>
+            <DatabaseControlCenter token={token} onSyncComplete={fetchData} />
 
             {/* Admin Grid: 1. Users Table */}
             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-md shadow-slate-100/40 space-y-6">
@@ -543,30 +513,19 @@ export const Home: React.FC = () => {
                   <p className="text-sm font-semibold text-slate-700">{user?.activityLevel}</p>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex flex-col space-y-3">
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                    <span>DATABASE SYNC</span>
-                    <span className="font-bold flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Ready
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleSyncDatabase}
-                    disabled={isSyncing}
-                    className="w-full inline-flex items-center justify-center space-x-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 disabled:bg-slate-50 text-rose-700 disabled:text-slate-400 text-xs font-semibold rounded-xl transition-all duration-200"
-                    id="btn-sync-database-user"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>{isSyncing ? 'Syncing...' : 'Sync History to Cloud'}</span>
-                  </button>
-                  {syncMessage && (
-                    <p className="text-[10px] font-mono leading-relaxed text-slate-500 mt-1">
-                      {syncMessage}
-                    </p>
-                  )}
+                {/* User Database Integration Info */}
+                <div className="pt-4 border-t border-slate-100 flex flex-col space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 font-mono tracking-wider block">
+                    DATABASE STATE
+                  </span>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Local files and live cloud storage synchronize dynamically using our dual-adapter configuration.
+                  </p>
                 </div>
               </div>
+
+              {/* Cloud Database Control Center Card */}
+              <DatabaseControlCenter token={token} onSyncComplete={fetchData} />
 
               {/* BMI Widget */}
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-md shadow-slate-100/40 space-y-6">

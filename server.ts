@@ -1,9 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { connectDB } from './server/db/config';
+import { connectDB, isMongoConnected } from './server/db/config';
 import { seedDatabase } from './server/db/seed';
 import userRoute from './server/routes/userRoute';
 import suggestionRoute from './server/routes/suggestionRoute';
@@ -40,7 +41,25 @@ async function startServer() {
     res.json({
       status: 'healthy',
       time: new Date().toISOString(),
-      databaseFallback: !require('./server/db/config').isMongoConnected,
+      databaseFallback: !isMongoConnected,
+    });
+  });
+
+  // DB Status API
+  app.get('/api/db-status', (req, res) => {
+    let firebaseConfig = null;
+    try {
+      const fbConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
+      if (fs.existsSync(fbConfigPath)) {
+        firebaseConfig = JSON.parse(fs.readFileSync(fbConfigPath, 'utf-8'));
+      }
+    } catch (e) {
+      console.error('Error reading firebase config in API:', e);
+    }
+
+    res.json({
+      isMongoConnected,
+      firebaseConfig,
     });
   });
 
