@@ -24,13 +24,15 @@ export async function registerUser(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Determine role - automatically make anyone with 'admin' in email or explicit 'admin' role an admin
     let userRole: 'user' | 'admin' = 'user';
-    if (role === 'admin' || email.toLowerCase().includes('admin') || email.toLowerCase() === 'mulamurisowjanya31@gmail.com') {
+    if (role === 'admin' || cleanEmail.includes('admin') || cleanEmail === 'mulamurisowjanya31@gmail.com') {
       userRole = 'admin';
     }
 
@@ -38,13 +40,13 @@ export async function registerUser(req: Request, res: Response): Promise<void> {
     let existingUser: any = null;
     try {
       if (isMongoConnected) {
-        existingUser = await UserModel.findOne({ email });
+        existingUser = await UserModel.findOne({ email: cleanEmail });
       }
     } catch (e) {
       console.warn('MongoDB duplicate email check failed:', e);
     }
     if (!existingUser) {
-      existingUser = localDb.findUserByEmail(email);
+      existingUser = localDb.findUserByEmail(cleanEmail);
     }
 
     if (existingUser) {
@@ -55,7 +57,7 @@ export async function registerUser(req: Request, res: Response): Promise<void> {
     // Always create local user first as a persistent local fallback backup
     const localSavedUser = localDb.createUser({
       name,
-      email,
+      email: cleanEmail,
       passwordHash,
       age: Number(age),
       gender,
@@ -72,7 +74,7 @@ export async function registerUser(req: Request, res: Response): Promise<void> {
       try {
         const newUser = new UserModel({
           name,
-          email,
+          email: cleanEmail,
           passwordHash,
           age: Number(age),
           gender,
@@ -121,24 +123,26 @@ export async function loginUser(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+
     let user: any = null;
     let foundInMongo = false;
 
     if (isMongoConnected) {
       try {
-        user = await UserModel.findOne({ email });
+        user = await UserModel.findOne({ email: cleanEmail });
         if (user) {
           foundInMongo = true;
         } else {
           // Check local fallback
-          user = localDb.findUserByEmail(email);
+          user = localDb.findUserByEmail(cleanEmail);
         }
       } catch (err) {
         console.warn('MongoDB lookup failed, searching local fallback:', err);
-        user = localDb.findUserByEmail(email);
+        user = localDb.findUserByEmail(cleanEmail);
       }
     } else {
-      user = localDb.findUserByEmail(email);
+      user = localDb.findUserByEmail(cleanEmail);
     }
 
     if (!user) {

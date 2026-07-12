@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 import { User, AuthContextType } from '../types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -7,6 +8,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('nutri_token');
+    localStorage.removeItem('nutri_user');
+  };
 
   useEffect(() => {
     // Sync with localStorage on component mount
@@ -26,18 +34,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
+  useEffect(() => {
+    // Axios global interceptor to automatically logout on 401 response (except for login endpoints)
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const isLoginEndpoint = error.config?.url?.includes('/api/users/login');
+        if (error.response?.status === 401 && !isLoginEndpoint) {
+          logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []);
+
   const login = (newToken: string, newUser: User) => {
     setToken(newToken);
     setUser(newUser);
     localStorage.setItem('nutri_token', newToken);
     localStorage.setItem('nutri_user', JSON.stringify(newUser));
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('nutri_token');
-    localStorage.removeItem('nutri_user');
   };
 
   const updateUserInContext = (updatedUser: User) => {

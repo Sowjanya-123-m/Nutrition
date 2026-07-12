@@ -54,12 +54,12 @@ export const AIChat: React.FC = () => {
 
   // Load User Stats & Suggestions for UI telemetry
   useEffect(() => {
-    if (user) {
+    if (user && token) {
       setMessages([
         {
           sender: 'ai',
           text: `Hello **${user.name}**! I have successfully loaded your clinical profile and metabolic journal. 
-
+ 
 I'm ready to assist you. You can chat with me naturally, or use the **Quick AI Clinical Actions** to instantly generate full plans, nutrition guides, and healthy food alternatives!`,
           timestamp: new Date()
         }
@@ -85,7 +85,7 @@ I'm ready to assist you. You can chat with me naturally, or use the **Quick AI C
         })
         .catch((err) => console.error('Error fetching suggestions for chat page:', err));
     }
-  }, [user]);
+  }, [user, token]);
 
   // Handle standard message submission
   const handleSendMessage = async (e: React.FormEvent) => {
