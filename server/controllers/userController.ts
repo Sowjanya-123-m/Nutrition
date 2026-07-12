@@ -34,79 +34,78 @@ export async function registerUser(req: Request, res: Response): Promise<void> {
       userRole = 'admin';
     }
 
-    if (isMongoConnected) {
-      const existingUser = await UserModel.findOne({ email });
-      if (existingUser) {
-        res.status(400).json({ message: 'User with this email already exists' });
-        return;
+    // Ensure we check for duplicate email across BOTH databases to prevent conflicts
+    let existingUser: any = null;
+    try {
+      if (isMongoConnected) {
+        existingUser = await UserModel.findOne({ email });
       }
-
-      const newUser = new UserModel({
-        name,
-        email,
-        passwordHash,
-        age: Number(age),
-        gender,
-        height: Number(height),
-        weight: Number(weight),
-        activityLevel,
-        role: userRole,
-      });
-
-      const savedUser = await newUser.save();
-      const token = generateToken(savedUser._id.toString(), savedUser.email, savedUser.role);
-
-      res.status(201).json({
-        token,
-        user: {
-          id: savedUser._id.toString(),
-          name: savedUser.name,
-          email: savedUser.email,
-          age: savedUser.age,
-          gender: savedUser.gender,
-          height: savedUser.height,
-          weight: savedUser.weight,
-          activityLevel: savedUser.activityLevel,
-          role: savedUser.role,
-        }
-      });
-    } else {
-      // Local DB flow
-      const existingUser = localDb.findUserByEmail(email);
-      if (existingUser) {
-        res.status(400).json({ message: 'User with this email already exists' });
-        return;
-      }
-
-      const savedUser = localDb.createUser({
-        name,
-        email,
-        passwordHash,
-        age: Number(age),
-        gender,
-        height: Number(height),
-        weight: Number(weight),
-        activityLevel,
-        role: userRole,
-      });
-
-      const token = generateToken(savedUser._id, savedUser.email, savedUser.role);
-
-      res.status(201).json({
-        token,
-        user: {
-          id: savedUser._id,
-          name: savedUser.name,
-          email: savedUser.email,
-          age: savedUser.age,
-          gender: savedUser.gender,
-          height: savedUser.height,
-          weight: savedUser.weight,
-          activityLevel: savedUser.activityLevel,
-          role: savedUser.role,
-        }
-      });
+    } catch (e) {
+      console.warn('MongoDB duplicate email check failed:', e);
     }
+    if (!existingUser) {
+      existingUser = localDb.findUserByEmail(email);
+    }
+
+    if (existingUser) {
+      res.status(400).json({ message: 'User with this email already exists' });
+      return;
+    }
+
+    // Always create local user first as a persistent local fallback backup
+    const localSavedUser = localDb.createUser({
+      name,
+      email,
+      passwordHash,
+      age: Number(age),
+      gender,
+      height: Number(height),
+      weight: Number(weight),
+      activityLevel,
+      role: userRole,
+    });
+
+    let savedUser: any = localSavedUser;
+    let userIdStr = localSavedUser._id;
+
+    if (isMongoConnected) {
+      try {
+        const newUser = new UserModel({
+          name,
+          email,
+          passwordHash,
+          age: Number(age),
+          gender,
+          height: Number(height),
+          weight: Number(weight),
+          activityLevel,
+          role: userRole,
+        });
+
+        const savedMongoUser = await newUser.save();
+        savedUser = savedMongoUser;
+        userIdStr = savedMongoUser._id.toString();
+      } catch (mongoError) {
+        console.error('Failed to save to MongoDB, continuing with local backup:', mongoError);
+      }
+    }
+
+    const token = generateToken(userIdStr, savedUser.email, savedUser.role);
+
+    res.status(201).json({
+      token,
+      user: {
+        id: userIdStr,
+        name: savedUser.name,
+        email: savedUser.email,
+        age: savedUser.age,
+        gender: savedUser.gender,
+        height: savedUser.height,
+        weight: savedUser.weight,
+        activityLevel: savedUser.activityLevel,
+        role: savedUser.role,
+      }
+    });
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ message: 'Server error during registration' });
@@ -123,9 +122,21 @@ export async function loginUser(req: Request, res: Response): Promise<void> {
     }
 
     let user: any = null;
+    let foundInMongo = false;
 
     if (isMongoConnected) {
-      user = await UserModel.findOne({ email });
+      try {
+        user = await UserModel.findOne({ email });
+        if (user) {
+          foundInMongo = true;
+        } else {
+          // Check local fallback
+          user = localDb.findUserByEmail(email);
+        }
+      } catch (err) {
+        console.warn('MongoDB lookup failed, searching local fallback:', err);
+        user = localDb.findUserByEmail(email);
+      }
     } else {
       user = localDb.findUserByEmail(email);
     }
@@ -141,7 +152,51 @@ export async function loginUser(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const userIdStr = isMongoConnected ? user._id.toString() : user._id;
+    // On-the-fly replication: If MongoDB is connected and user only exists in localDb, save to MongoDB
+    if (isMongoConnected && !foundInMongo) {
+      try {
+        const newMongoUser = new UserModel({
+          name: user.name,
+          email: user.email,
+          passwordHash: user.passwordHash,
+          age: Number(user.age),
+          gender: user.gender,
+          height: Number(user.height),
+          weight: Number(user.weight),
+          activityLevel: user.activityLevel,
+          role: user.role,
+        });
+        const savedMongoUser = await newMongoUser.save();
+        user = savedMongoUser;
+        foundInMongo = true;
+      } catch (replicateError) {
+        console.warn('On-the-fly replication to MongoDB failed:', replicateError);
+      }
+    }
+
+    // On-the-fly replication: If user exists in Mongo but not in localDb, save to localDb
+    if (foundInMongo) {
+      try {
+        const localUserExists = localDb.findUserByEmail(user.email);
+        if (!localUserExists) {
+          localDb.createUser({
+            name: user.name,
+            email: user.email,
+            passwordHash: user.passwordHash,
+            age: Number(user.age),
+            gender: user.gender,
+            height: Number(user.height),
+            weight: Number(user.weight),
+            activityLevel: user.activityLevel,
+            role: user.role,
+          });
+        }
+      } catch (localReplicateError) {
+        console.warn('On-the-fly replication to local DB failed:', localReplicateError);
+      }
+    }
+
+    const userIdStr = foundInMongo ? user._id.toString() : user._id;
     const token = generateToken(userIdStr, user.email, user.role);
 
     res.json({
@@ -174,9 +229,22 @@ export async function getUserProfile(req: AuthRequest, res: Response): Promise<v
     let user: any = null;
 
     if (isMongoConnected) {
-      user = await UserModel.findById(req.user.id);
+      try {
+        user = await UserModel.findById(req.user.id);
+        if (!user && req.user.email) {
+          user = await UserModel.findOne({ email: req.user.email });
+        }
+      } catch (err) {
+        console.warn('MongoDB profile fetch failed, using local backup:', err);
+      }
+      if (!user && req.user.email) {
+        user = localDb.findUserByEmail(req.user.email);
+      }
     } else {
       user = localDb.findUserById(req.user.id);
+      if (!user && req.user.email) {
+        user = localDb.findUserByEmail(req.user.email);
+      }
     }
 
     if (!user) {
@@ -228,13 +296,48 @@ export async function updateUserProfile(req: AuthRequest, res: Response): Promis
     let updatedUser: any = null;
 
     if (isMongoConnected) {
-      updatedUser = await UserModel.findByIdAndUpdate(
-        req.user.id,
-        { $set: cleanUpdates },
-        { new: true }
-      );
+      try {
+        updatedUser = await UserModel.findByIdAndUpdate(
+          req.user.id,
+          { $set: cleanUpdates },
+          { new: true }
+        );
+        if (!updatedUser && req.user.email) {
+          const fallbackUser = await UserModel.findOne({ email: req.user.email });
+          if (fallbackUser) {
+            updatedUser = await UserModel.findByIdAndUpdate(
+              fallbackUser._id,
+              { $set: cleanUpdates },
+              { new: true }
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('MongoDB profile update failed, using local backup:', err);
+      }
+
+      // Also sync profile updates to localDb for consistency
+      if (req.user.email) {
+        try {
+          const localUser = localDb.findUserByEmail(req.user.email);
+          if (localUser) {
+            const localUpdate = localDb.updateUser(localUser._id, cleanUpdates);
+            if (!updatedUser) {
+              updatedUser = localUpdate;
+            }
+          }
+        } catch (localErr) {
+          console.warn('Local DB profile sync update failed:', localErr);
+        }
+      }
     } else {
       updatedUser = localDb.updateUser(req.user.id, cleanUpdates);
+      if (!updatedUser && req.user.email) {
+        const localUser = localDb.findUserByEmail(req.user.email);
+        if (localUser) {
+          updatedUser = localDb.updateUser(localUser._id, cleanUpdates);
+        }
+      }
     }
 
     if (!updatedUser) {
