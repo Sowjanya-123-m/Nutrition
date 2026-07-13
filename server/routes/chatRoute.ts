@@ -62,7 +62,17 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promis
           response = await chat.sendMessage({ message });
         } catch (secondError) {
           console.error('❌ Fallback chat model gemini-3.1-flash-lite also failed. Reverting to static chatbot responses...', secondError);
-          throw secondError;
+          const fallbacks = [
+            "A healthy diet is a journey, not a sprint. Focus on adding high-quality lean protein to your next meal!",
+            "Staying hydrated (at least 3 liters of water daily) is essential to flush out metabolic waste and keep your cellular functions running smoothly.",
+            "To maximize satiety while maintaining a calorie deficit, make sure at least half of your dinner plate consists of non-starchy fibrous greens.",
+            "Remember, nutrition is 80% of the equation, but active circulation (like a brisk 15-minute walk after meals) dramatically optimizes insulin sensitivity.",
+            "Consider prepping your meals on Sundays! It eliminates decision fatigue and guards you against low-blood-sugar convenience eating.",
+            "Fats are not the enemy! Focus on clean monounsaturated fats like raw almonds, cold-pressed olive oil, and avocado for proper hormone synthesis."
+          ];
+          const randomReply = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+          res.json({ reply: `[Offline Mode] ${randomReply}` });
+          return;
         }
       }
       res.json({ reply: response.text });

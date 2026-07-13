@@ -1,8 +1,10 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { connectDB, isMongoConnected } from './server/db/config';
 import { seedDatabase } from './server/db/seed';
@@ -11,8 +13,6 @@ import suggestionRoute from './server/routes/suggestionRoute';
 import chatRoute from './server/routes/chatRoute';
 import mealRoute from './server/routes/mealRoute';
 import aiRoute from './server/routes/aiRoute';
-
-dotenv.config();
 
 async function startServer() {
   const app = express();

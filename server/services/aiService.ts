@@ -142,8 +142,8 @@ Rules:
         const result = await chat.sendMessage({ message });
         return result.text || 'I could not generate a response. Please try again.';
       } catch (fallbackError) {
-        console.error('Gemini fallback chat error:', fallbackError);
-        throw fallbackError;
+        console.error('Gemini fallback chat error, falling back to offline demo response:', fallbackError);
+        return getDemoResponse(message, userContext);
       }
     }
   }

@@ -14,6 +14,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     localStorage.removeItem('nutri_token');
     localStorage.removeItem('nutri_user');
+    delete axios.defaults.headers.common['Authorization'];
   };
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setToken(savedToken);
         setUser(JSON.parse(savedUser));
+        axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
       } catch (e) {
         console.error('Error parsing saved auth state', e);
         localStorage.removeItem('nutri_token');
@@ -33,6 +35,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
 
   useEffect(() => {
     // Axios global interceptor to automatically logout on 401 response (except for login endpoints)
@@ -56,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(newUser);
     localStorage.setItem('nutri_token', newToken);
     localStorage.setItem('nutri_user', JSON.stringify(newUser));
+    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
   };
 
   const updateUserInContext = (updatedUser: User) => {

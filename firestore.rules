@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global fallback deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users Collection Rules
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Meals Collection Rules
+    match /meals/{mealId} {
+      allow read, write: if true;
+    }
+
+    // Suggestions Collection Rules
+    match /suggestions/{suggestionId} {
+      allow read, write: if true;
+    }
+  }
+}

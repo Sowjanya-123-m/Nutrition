@@ -1,12 +1,16 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
 import { isMongoConnected } from '../db/config';
 import { UserModel } from '../models/User';
 import { SuggestionModel } from '../models/Suggestion';
 import { MealModel } from '../models/Meal';
 import { localDb } from '../db/localDb';
 import { AuthRequest } from '../middlewares/authMiddleware';
+import { firebaseDb } from '../db/firebaseDb';
+
+dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'nutrition_assistant_super_secret_key';
 
@@ -430,10 +434,10 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<void>
 
 export async function syncLocalToMongo(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!isMongoConnected) {
-      res.status(400).json({
+    if (!isMongoConnected && !firebaseDb.isAvailable()) {
+      res.status(200).json({
         success: false,
-        message: 'MongoDB is not connected. Database sync is only possible when a live MongoDB Atlas instance is connected.'
+        message: 'No active cloud database connected. Database sync is only possible when a live MongoDB Atlas instance or Firebase Firestore is connected.'
       });
       return;
     }
@@ -449,56 +453,108 @@ export async function syncLocalToMongo(req: AuthRequest, res: Response): Promise
 
     // 1. Sync Users
     for (const user of localUsers) {
-      let dbUser = await UserModel.findOne({ email: user.email });
-      if (!dbUser) {
-        const newUser = new UserModel({
-          name: user.name,
-          email: user.email,
-          passwordHash: user.passwordHash,
-          age: user.age,
-          gender: user.gender,
-          height: user.height,
-          weight: user.weight,
-          activityLevel: user.activityLevel,
-          role: user.role,
-          createdAt: new Date(user.createdAt),
-        });
-        dbUser = await newUser.save();
-        usersSynced++;
+      if (isMongoConnected) {
+        let dbUser = await UserModel.findOne({ email: user.email });
+        if (!dbUser) {
+          const newUser = new UserModel({
+            name: user.name,
+            email: user.email,
+            passwordHash: user.passwordHash,
+            age: user.age,
+            gender: user.gender,
+            height: user.height,
+            weight: user.weight,
+            activityLevel: user.activityLevel,
+            role: user.role,
+            createdAt: new Date(user.createdAt),
+          });
+          dbUser = await newUser.save();
+          usersSynced++;
+        }
+        idMap[user._id] = dbUser._id.toString();
+      } else if (firebaseDb.isAvailable()) {
+        let dbUser = await firebaseDb.getUserByEmail(user.email);
+        if (!dbUser) {
+          const newUserPayload = {
+            name: user.name,
+            email: user.email.toLowerCase(),
+            passwordHash: user.passwordHash,
+            age: Number(user.age),
+            gender: user.gender,
+            height: Number(user.height),
+            weight: Number(user.weight),
+            activityLevel: user.activityLevel,
+            role: user.role,
+            createdAt: user.createdAt || new Date().toISOString(),
+          };
+          dbUser = await firebaseDb.createUser(user._id, newUserPayload);
+          usersSynced++;
+        }
+        idMap[user._id] = dbUser._id;
       }
-      idMap[user._id] = dbUser._id.toString();
     }
 
     // 2. Sync Suggestions
     for (const sug of localSuggestions) {
       const targetUserId = idMap[sug.userId] || sug.userId;
       
-      const existingSug = await SuggestionModel.findOne({
-        userId: targetUserId,
-        calorieIntake: sug.calorieIntake,
-        date: new Date(sug.date),
-      });
-
-      if (!existingSug) {
-        const newSug = new SuggestionModel({
+      if (isMongoConnected) {
+        const existingSug = await SuggestionModel.findOne({
           userId: targetUserId,
-          userName: sug.userName,
-          age: sug.age,
-          height: sug.height,
-          weight: sug.weight,
-          bmi: sug.bmi,
-          suggestion: sug.suggestion,
-          foods: sug.foods,
-          timing: sug.timing,
-          walk: sug.walk,
           calorieIntake: sug.calorieIntake,
-          carbohydrateNeeds: sug.carbohydrateNeeds,
-          proteinNeeds: sug.proteinNeeds,
-          weightGain: sug.weightGain,
           date: new Date(sug.date),
         });
-        await newSug.save();
-        suggestionsSynced++;
+
+        if (!existingSug) {
+          const newSug = new SuggestionModel({
+            userId: targetUserId,
+            userName: sug.userName,
+            age: sug.age,
+            height: sug.height,
+            weight: sug.weight,
+            bmi: sug.bmi,
+            suggestion: sug.suggestion,
+            foods: sug.foods,
+            timing: sug.timing,
+            walk: sug.walk,
+            calorieIntake: sug.calorieIntake,
+            carbohydrateNeeds: sug.carbohydrateNeeds,
+            proteinNeeds: sug.proteinNeeds,
+            weightGain: sug.weightGain,
+            date: new Date(sug.date),
+          });
+          await newSug.save();
+          suggestionsSynced++;
+        }
+      } else if (firebaseDb.isAvailable()) {
+        const dbSuggestions = await firebaseDb.getSuggestions(targetUserId);
+        const existingSug = dbSuggestions.find(s => 
+          s.calorieIntake === sug.calorieIntake && 
+          new Date(s.date).getTime() === new Date(sug.date).getTime()
+        );
+
+        if (!existingSug) {
+          const newSugPayload = {
+            userId: targetUserId,
+            userName: sug.userName,
+            age: Number(sug.age),
+            height: Number(sug.height),
+            weight: Number(sug.weight),
+            bmi: Number(sug.bmi),
+            suggestion: sug.suggestion,
+            foods: sug.foods,
+            timing: sug.timing,
+            walk: sug.walk,
+            calorieIntake: Number(sug.calorieIntake),
+            carbohydrateNeeds: Number(sug.carbohydrateNeeds),
+            proteinNeeds: Number(sug.proteinNeeds),
+            weightGain: Number(sug.weightGain),
+            date: sug.date || new Date().toISOString(),
+          };
+          const sugId = sug._id || 'sug_' + Math.random().toString(36).substr(2, 9);
+          await firebaseDb.createSuggestion(sugId, newSugPayload);
+          suggestionsSynced++;
+        }
       }
     }
 
@@ -506,32 +562,58 @@ export async function syncLocalToMongo(req: AuthRequest, res: Response): Promise
     for (const meal of localMeals) {
       const targetUserId = idMap[meal.userId] || meal.userId;
 
-      const existingMeal = await MealModel.findOne({
-        userId: targetUserId,
-        mealName: meal.mealName,
-        description: meal.description,
-        date: new Date(meal.date),
-      });
-
-      if (!existingMeal) {
-        const newMeal = new MealModel({
+      if (isMongoConnected) {
+        const existingMeal = await MealModel.findOne({
           userId: targetUserId,
           mealName: meal.mealName,
           description: meal.description,
-          calories: meal.calories,
-          protein: meal.protein,
-          carbs: meal.carbs,
-          fat: meal.fat,
           date: new Date(meal.date),
         });
-        await newMeal.save();
-        mealsSynced++;
+
+        if (!existingMeal) {
+          const newMeal = new MealModel({
+            userId: targetUserId,
+            mealName: meal.mealName,
+            description: meal.description,
+            calories: meal.calories,
+            protein: meal.protein,
+            carbs: meal.carbs,
+            fat: meal.fat,
+            date: new Date(meal.date),
+          });
+          await newMeal.save();
+          mealsSynced++;
+        }
+      } else if (firebaseDb.isAvailable()) {
+        const dbMeals = await firebaseDb.getMeals(targetUserId);
+        const existingMeal = dbMeals.find(m => 
+          m.mealName === meal.mealName && 
+          m.description === meal.description &&
+          new Date(m.date).getTime() === new Date(meal.date).getTime()
+        );
+
+        if (!existingMeal) {
+          const newMealPayload = {
+            userId: targetUserId,
+            mealName: meal.mealName,
+            description: meal.description,
+            calories: Number(meal.calories),
+            protein: Number(meal.protein),
+            carbs: Number(meal.carbs),
+            fat: Number(meal.fat),
+            date: meal.date || new Date().toISOString(),
+          };
+          const mealId = meal._id || 'meal_' + Math.random().toString(36).substr(2, 9);
+          await firebaseDb.createMeal(mealId, newMealPayload);
+          mealsSynced++;
+        }
       }
     }
 
+    const dest = isMongoConnected ? 'MongoDB Atlas' : 'Firebase Firestore';
     res.json({
       success: true,
-      message: 'Database synchronization completed successfully.',
+      message: `Database synchronization completed successfully into ${dest}.`,
       summary: {
         totalLocalUsers: localUsers.length,
         totalLocalSuggestions: localSuggestions.length,

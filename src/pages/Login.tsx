@@ -39,13 +39,16 @@ export const Login: React.FC = () => {
   };
 
   // Quick helper to pre-fill standard credentials for rapid agent and user testing
-  const autofillDemo = (role: 'user' | 'admin') => {
+  const autofillDemo = (role: 'user' | 'admin' | 'sowjanya') => {
     if (role === 'user') {
       setEmail('user@example.com');
       setPassword('password123');
-    } else {
+    } else if (role === 'admin') {
       setEmail('admin@nutrition.com');
       setPassword('admin123');
+    } else {
+      setEmail('mulamurisowjanya31@gmail.com');
+      setPassword('sowjanya123');
     }
   };
 
@@ -154,24 +157,33 @@ export const Login: React.FC = () => {
             <span className="text-xs font-bold text-slate-400 tracking-wider uppercase font-mono block text-center">
               Quick Sandbox Testing Access
             </span>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => autofillDemo('user')}
-                className="inline-flex items-center justify-center space-x-1.5 px-3 py-2 border border-slate-100 rounded-xl text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all"
+                className="inline-flex flex-col items-center justify-center space-y-1 p-2 border border-slate-100 rounded-xl text-[10px] font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all text-center"
                 id="btn-autofill-user"
               >
                 <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-                <span>Fill User Demo</span>
+                <span>User Demo</span>
               </button>
               <button
                 type="button"
                 onClick={() => autofillDemo('admin')}
-                className="inline-flex items-center justify-center space-x-1.5 px-3 py-2 border border-slate-100 rounded-xl text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all"
+                className="inline-flex flex-col items-center justify-center space-y-1 p-2 border border-slate-100 rounded-xl text-[10px] font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all text-center"
                 id="btn-autofill-admin"
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-500" />
-                <span>Fill Admin Demo</span>
+                <span>Admin Demo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => autofillDemo('sowjanya')}
+                className="inline-flex flex-col items-center justify-center space-y-1 p-2 border border-slate-100 rounded-xl text-[10px] font-semibold text-slate-700 bg-emerald-50 border-emerald-100 hover:bg-emerald-100 active:scale-95 transition-all text-center"
+                id="btn-autofill-sowjanya"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 animate-pulse" />
+                <span>Clinical Admin</span>
               </button>
             </div>
           </div>

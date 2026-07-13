@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'nutrition_assistant_super_secret_key';
 
@@ -14,12 +17,13 @@ export interface AuthRequest extends Request {
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
+    console.warn(`[AuthMiddleware] 401 Unauthorized on ${req.method} ${req.originalUrl} - Missing or malformed Authorization header.`);
     res.status(401).json({ message: 'Access Denied: No token provided' });
     return;
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.substring(7).trim();
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as {
@@ -29,7 +33,8 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     };
     req.user = decoded;
     next();
-  } catch (error) {
+  } catch (error: any) {
+    console.warn(`[AuthMiddleware] 401 Unauthorized on ${req.method} ${req.originalUrl} - Token verification failed:`, error.message || error);
     res.status(401).json({ message: 'Access Denied: Invalid or expired token' });
   }
 }

@@ -7,9 +7,11 @@ export async function seedDatabase(): Promise<void> {
   try {
     const defaultUserEmail = 'user@example.com';
     const defaultAdminEmail = 'admin@nutrition.com';
+    const sowjanyaEmail = 'mulamurisowjanya31@gmail.com';
 
     const userHash = await bcrypt.hash('password123', 10);
     const adminHash = await bcrypt.hash('admin123', 10);
+    const sowjanyaHash = await bcrypt.hash('sowjanya123', 10);
 
     // 1. Seed Local Database fallback
     const localUsers = localDb.getUsers();
@@ -41,6 +43,22 @@ export async function seedDatabase(): Promise<void> {
         gender: 'Female',
         height: 165,
         weight: 58,
+        activityLevel: 'Moderately Active',
+        role: 'admin',
+      });
+    }
+
+    let hasLocalSowjanya = localUsers.some(u => u.email.toLowerCase() === sowjanyaEmail);
+    if (!hasLocalSowjanya) {
+      console.log('🌱 Seeding sowjanya admin into local JSON database...');
+      localDb.createUser({
+        name: 'Sowjanya Mulamuri',
+        email: sowjanyaEmail,
+        passwordHash: sowjanyaHash,
+        age: 26,
+        gender: 'Female',
+        height: 164,
+        weight: 62,
         activityLevel: 'Moderately Active',
         role: 'admin',
       });
@@ -80,6 +98,23 @@ export async function seedDatabase(): Promise<void> {
           role: 'admin',
         });
         await newAdmin.save();
+      }
+
+      const mongoSowjanyaExists = await UserModel.findOne({ email: sowjanyaEmail });
+      if (!mongoSowjanyaExists) {
+        console.log('🌱 Seeding sowjanya admin into MongoDB...');
+        const newSowjanya = new UserModel({
+          name: 'Sowjanya Mulamuri',
+          email: sowjanyaEmail,
+          passwordHash: sowjanyaHash,
+          age: 26,
+          gender: 'Female',
+          height: 164,
+          weight: 62,
+          activityLevel: 'Moderately Active',
+          role: 'admin',
+        });
+        await newSowjanya.save();
       }
     }
     console.log('✅ Database initialization and seeding complete.');

@@ -9,7 +9,7 @@ export async function connectDB() {
   const mongoUri = process.env.MONGODB_URI;
 
   if (!mongoUri) {
-    console.warn('⚠️ MONGODB_URI is not set in environment variables. Falling back to high-fidelity local JSON database store.');
+    console.warn('⚠️ MONGODB_URI is not set in environment variables. Enabling MongoDB Local Sandbox Live Simulator.');
     isMongoConnected = false;
     return;
   }
@@ -23,7 +23,8 @@ export async function connectDB() {
     console.log('✅ Connected to MongoDB successfully via Mongoose.');
   } catch (error) {
     console.error('❌ MongoDB Connection failed:', error instanceof Error ? error.message : error);
-    console.warn('⚠️ Falling back to local JSON database store for session stability.');
+    console.warn('⚠️ Falling back to Local Sandbox Live Simulator for session stability.');
     isMongoConnected = false;
   }
 }
+
